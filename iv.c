@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include "readWebPFile.h"
 
+#define PATH "./"
+
 GtkWidget *window;
 GtkWidget *scroll_window;
 GtkWidget *d_area;
@@ -11,6 +13,7 @@ GdkPixbuf *image_pixbuf = NULL;
 const char *now_fname = NULL;
 double now_scale = 1;
 GList* flist = NULL;
+const char *now_dir = NULL;
 
 _Bool path_type_check (const char *path, const char *type) {
   char *file_ex = strrchr(path, '.');
@@ -18,7 +21,11 @@ _Bool path_type_check (const char *path, const char *type) {
 }
 GList* get_path_filelist (const char *dir_name) {
   GDir *dir = g_dir_open(dir_name, 0, NULL);
-  if (!dir) return NULL;
+  if (!dir) {
+    g_print("Does not open dir %s\n", dir_name);
+    return NULL;
+  }
+  now_dir = dir_name;
   GList *list = NULL;
   _Bool type_check (const char* name) {
     return path_type_check(name, "webp")
@@ -26,7 +33,7 @@ GList* get_path_filelist (const char *dir_name) {
   }
   const char* name;
   while (name = g_dir_read_name(dir)) if (type_check(name)) {
-    char *tmp = (char*)malloc(sizeof(name));
+    char *tmp = (char*)malloc(strlen(name) + 1);
     strcpy(tmp, name);
     list = g_list_prepend(list, (void*)tmp);
   }
@@ -57,7 +64,7 @@ void set_window_size_from_pixbuf (GdkPixbuf *pixbuf) {
   int p_height = gdk_pixbuf_get_height(pixbuf) * par_scale;
   GdkRectangle rectangle;
   gdk_monitor_get_geometry(get_gdk_monitor(), &rectangle);
-  int b_height = 34;
+  int b_height = 33;
   int s_width9 = rectangle.width * 0.9;
   int s_height9 = rectangle.height * 0.85;
   double w_hi = p_width <= s_width9 ? 1 : (double)s_width9 / p_width;
@@ -136,23 +143,31 @@ G_MODULE_EXPORT void dot_by_dot_click
 }
 G_MODULE_EXPORT void plus_click (GtkButton *button, gpointer p) {
   if (now_scale > 4) return;
-  now_scale *= 1.25;
+  now_scale *= 1.125;
   re_draw();
 }
 G_MODULE_EXPORT void minus_click (GtkButton *button, gpointer p) {
   if (now_scale < 0.025) return;
-  now_scale *= 0.8;
+  now_scale *= 1.0 / 1.125;
   re_draw();
 }
 G_MODULE_EXPORT void back_click 
 (GtkButton *button, gpointer p) {
-  if (flist->prev) flist = flist->prev;
-  set_pixbuf_from_file((char*)flist->data);
+  if (flist) {
+    if (flist->prev) flist = flist->prev;
+    gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
+    set_pixbuf_from_file(path);
+    g_free(path);
+  }
 }
 G_MODULE_EXPORT void next_click 
 (GtkButton *button, gpointer p) {
-  if (flist->next) flist = flist->next;
-  set_pixbuf_from_file((char*)flist->data);
+  if (flist) {
+    if (flist->next) flist = flist->next;
+    gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
+    set_pixbuf_from_file(path);
+    g_free(path);
+  }
 }
 
 void* thread_read_webp_file (const char* path) {
@@ -169,20 +184,39 @@ void load_css (const char* css_file) {
   GError *error = 0;
   gtk_css_provider_load_from_file(
       provider, g_file_new_for_path(css_file), &error);
-  g_object_unref (provider);
+  g_object_unref(provider);
 }
 
 int main (int argc, char *argv[]) {
   pthread_t thread;
-  if (argc > 1)
-    pthread_create(&thread, NULL, (void*)thread_read_webp_file, argv[1]);
+  char *dir_name = NULL;
+  char *file_name = NULL;
+  if (argc > 1) {
+    char* path = argv[1];
+    pthread_create(&thread, NULL, (void*)thread_read_webp_file, path);
+    char* slash_p = strrchr(path, '/');
+    if (slash_p != NULL) {
+      file_name = slash_p + 1;
+      int len = slash_p - path;
+      char* d_name = (char*)malloc(len + 1);
+      strncpy(d_name, path, len);
+      d_name[len] = '\0';
+      dir_name = d_name[0] == '/' ?
+        d_name : g_strdup_printf("%s/%s", g_get_current_dir(), d_name);
+    }
+    else {
+      file_name = path;
+      dir_name = g_get_current_dir();
+    }
+  }
+  else dir_name = g_get_current_dir();
 
   gtk_init(&argc, &argv); 
 
   GtkBuilder *builder = gtk_builder_new(); 
-  gtk_builder_add_from_file(builder, "iv.ui", NULL); 
+  gtk_builder_add_from_file(builder, PATH "/iv.ui", NULL); 
   gtk_builder_connect_signals(builder, NULL); 
-  load_css("iv.css");
+  load_css(PATH "/iv.css");
 
   window = (GtkWidget*)gtk_builder_get_object(builder, "window"); 
   scroll_window =
@@ -191,10 +225,12 @@ int main (int argc, char *argv[]) {
   gtk_widget_set_name(scroll_window, "draw_area");
   
   gtk_widget_show_all(window);
-  flist = get_path_filelist(g_get_current_dir());
+  GList *first = flist = get_path_filelist(dir_name);
 
-  if (argc > 1) {
-    while (strcmp(argv[1], flist->data) && (flist = flist->next));
+  if (file_name) {
+    if (flist)
+      while (strcmp(file_name, flist->data) && (flist = flist->next));
+    if (!flist) flist = first;
     void *status;
     pthread_join(thread, &status);
     set_pixbuf((GdkPixbuf*)status, argv[1]);
