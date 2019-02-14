@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "readWebPFile.h"
+#include "get_pixbuf_heif_from_file.h"
 #include "widget_func.h"
 
 #define CONF_PATH "./"
@@ -24,7 +25,7 @@ GList* get_path_filelist (const char *dir_name) {
   }
   GList *list = NULL;
   _Bool type_check (const char* name) {
-    return path_type_check(name, "webp")
+    return path_type_check(name, "webp") || path_type_check(name, "heif")
       || path_type_check(name, "jpg") || path_type_check(name, "png");
   }
   const char* name;
@@ -46,8 +47,9 @@ GdkPixbuf* webp_to_pixbuf (const char *path) {
 }
 
 GdkPixbuf* pixbuf_from_file (const char *path){
-  return path_type_check(path, "webp") ?
-    webp_to_pixbuf(path) : gdk_pixbuf_new_from_file(path, NULL);
+  return path_type_check(path, "webp") ? webp_to_pixbuf(path):
+         path_type_check(path, "heif") ? get_pixbuf_heif_from_file(path):
+                               gdk_pixbuf_new_from_file(path, NULL);
 }
 void set_pixbuf (GdkPixbuf *pixbuf, const char *path) {
   if (!pixbuf) return;
@@ -110,6 +112,35 @@ G_MODULE_EXPORT void next_click
     gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
     set_pixbuf_from_file(path);
     g_free(path);
+  }
+}
+G_MODULE_EXPORT void key_press
+(GtkWidget *widget, GdkEventKey *event, gpointer data) {
+  switch (event->keyval) {
+    case GDK_KEY_j:
+    case GDK_KEY_Down:
+      next_click(NULL, NULL);
+      break;
+    case GDK_KEY_k:
+    case GDK_KEY_Up:
+      back_click(NULL, NULL);
+      break;
+    case GDK_KEY_1:
+      dot_by_dot_click(NULL, NULL);
+      break;
+    case GDK_KEY_s:
+      window_fix_click(NULL, NULL);
+      break;
+    case GDK_KEY_plus:
+      plus_click(NULL, NULL);
+      break;
+    case GDK_KEY_minus:
+      minus_click(NULL, NULL);
+      break;
+    case GDK_KEY_f:
+    case GDK_KEY_F11:
+      fullscreen();
+      break;
   }
 }
 

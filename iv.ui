@@ -16,6 +16,7 @@
         <property name="visible">True</property>
         <property name="can_focus">False</property>
         <property name="orientation">vertical</property>
+        <signal name="key-press-event" handler="key_press" swapped="no"/>
         <child>
           <object class="GtkScrolledWindow" id="scroll_window">
             <property name="visible">True</property>

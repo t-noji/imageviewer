@@ -4,5 +4,6 @@ double get_window_fix_scale (GdkPixbuf *pixbuf);
 double set_window_size_from_pixbuf (GdkPixbuf *pixbuf);
 void set_title (GdkPixbuf *image_pixbuf);
 void re_draw ();
+void fullscreen();
 GtkWidget* init_builder (const char* path);
 void load_css (const char* css_file);

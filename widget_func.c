@@ -66,6 +66,13 @@ void re_draw (GdkPixbuf *pixbuf, double now_scale, const char *fname) {
   set_title(pixbuf, now_scale, fname);
   gtk_widget_queue_draw(d_area);
 }
+void fullscreen () {
+  static _Bool full = FALSE;
+  GtkWindow *win = GTK_WINDOW(window);
+  if (full) gtk_window_unfullscreen(win);
+  else gtk_window_fullscreen(win);
+  full = !full;
+}
 
 GtkWidget* init_builder (const char* path) {
   GtkBuilder *builder = gtk_builder_new(); 
@@ -76,6 +83,7 @@ GtkWidget* init_builder (const char* path) {
     (GtkWidget*)gtk_builder_get_object(builder, "scroll_window"); 
   d_area = (GtkWidget*)gtk_builder_get_object(builder,"draw_area");
   gtk_widget_set_name(scroll_window, "draw_area");
+  g_object_unref(builder);
   return window;
 }
 void load_css (const char* css_file) {
