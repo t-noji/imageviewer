@@ -4,7 +4,7 @@
 #include "readWebPFile.h"
 #include "widget_func.h"
 
-#define CONF_PATH "/home/noji/sh/" //"./"
+#define CONF_PATH "./"
 
 GdkPixbuf *image_pixbuf = NULL;
 const char *now_fname = NULL;
