@@ -47,11 +47,9 @@ double get_window_fix_scale (GdkPixbuf *pixbuf) {
 void set_title (GdkPixbuf *pixbuf, double now_scale, const char *fname) {
   int width = gdk_pixbuf_get_width(pixbuf);
   int height = gdk_pixbuf_get_height(pixbuf);
-  const char *slash_p = strrchr(fname, '/');
-  const char *f_name = slash_p == NULL ? fname : slash_p + 1;
   gchar *title = 
     g_strdup_printf("%s %dx%d %d%%",
-      f_name, width, height,(int)(now_scale * 100));
+      fname, width, height,(int)(now_scale * 100));
   gtk_window_set_title(GTK_WINDOW(window), title);
   g_free(title);
 }

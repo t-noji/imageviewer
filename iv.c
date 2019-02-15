@@ -8,7 +8,6 @@
 #define CONF_PATH "./"
 
 GdkPixbuf *image_pixbuf = NULL;
-const char *now_fname = NULL;
 const char *now_dir = NULL;
 double now_scale = 1;
 GList* flist = NULL;
@@ -55,9 +54,7 @@ void set_pixbuf (GdkPixbuf *pixbuf, const char *path) {
   if (!pixbuf) return;
   if (image_pixbuf) g_object_unref(image_pixbuf);
   image_pixbuf = pixbuf;
-  now_fname = path;
   now_scale = set_window_size_from_pixbuf(pixbuf);
-  re_draw(image_pixbuf, now_scale, now_fname);
 }
 void set_pixbuf_from_file (const char *path) {
   set_pixbuf(pixbuf_from_file(path), path);
@@ -78,23 +75,23 @@ G_MODULE_EXPORT void area_draw
 }
 G_MODULE_EXPORT void window_fix_click 
 (GtkButton *button, gpointer p) {
-  now_scale = get_window_fix_scale(image_pixbuf);
-  re_draw(image_pixbuf, now_scale, now_fname);
+  if (image_pixbuf) now_scale = get_window_fix_scale(image_pixbuf);
+  re_draw(image_pixbuf, now_scale, flist->data);
 }
 G_MODULE_EXPORT void dot_by_dot_click 
 (GtkButton *button, gpointer p) {
   now_scale = 1;
-  re_draw(image_pixbuf, now_scale, now_fname);
+  re_draw(image_pixbuf, now_scale, flist->data);
 }
 G_MODULE_EXPORT void plus_click (GtkButton *button, gpointer p) {
   if (now_scale > 4) return;
   now_scale *= 1.125;
-  re_draw(image_pixbuf, now_scale, now_fname);
+  re_draw(image_pixbuf, now_scale, flist->data);
 }
 G_MODULE_EXPORT void minus_click (GtkButton *button, gpointer p) {
   if (now_scale < 0.025) return;
   now_scale *= 1.0 / 1.125;
-  re_draw(image_pixbuf, now_scale, now_fname);
+  re_draw(image_pixbuf, now_scale, flist->data);
 }
 G_MODULE_EXPORT void back_click 
 (GtkButton *button, gpointer p) {
@@ -103,6 +100,7 @@ G_MODULE_EXPORT void back_click
     gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
     set_pixbuf_from_file(path);
     g_free(path);
+    re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
 G_MODULE_EXPORT void next_click 
@@ -112,6 +110,7 @@ G_MODULE_EXPORT void next_click
     gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
     set_pixbuf_from_file(path);
     g_free(path);
+    re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
 G_MODULE_EXPORT void key_press
@@ -140,6 +139,7 @@ G_MODULE_EXPORT void key_press
     case GDK_KEY_f:
     case GDK_KEY_F11:
       fullscreen();
+      window_fix_click(NULL, NULL);
       break;
   }
 }
@@ -190,6 +190,7 @@ int main (int argc, char *argv[]) {
     void *status;
     pthread_join(thread, &status);
     set_pixbuf((GdkPixbuf*)status, argv[1]);
+    re_draw(image_pixbuf, now_scale, flist->data);
   }
   gtk_main();
   return 0;
