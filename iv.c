@@ -1,11 +1,11 @@
 #include <gtk/gtk.h>
 #include <string.h>
 #include <stdlib.h>
-#include "readWebPFile.h"
+#include "get_pixbuf_webp_from_file.h"
 #include "get_pixbuf_heif_from_file.h"
 #include "widget_func.h"
 
-#define CONF_PATH "./"
+#define CONF_PATH "/home/noji/sh/"
 
 GdkPixbuf *image_pixbuf = NULL;
 const char *now_dir = NULL;
@@ -35,18 +35,8 @@ GList* get_path_filelist (const char *dir_name) {
   return list;
 }
 
-static void destroy_data (guchar *data, gpointer p) { g_free(data); }
-GdkPixbuf* webp_to_pixbuf (const char *path) {
-  WEBP_DATA wd = readWebPFile(path);
-  if (!wd.data) return NULL;
-  GdkPixbuf *pixbuf = gdk_pixbuf_new_from_data(wd.data,
-      GDK_COLORSPACE_RGB, wd.ch == 4, 8,
-      wd.width, wd.height, wd.width * wd.ch, destroy_data, NULL);
-  return pixbuf;
-}
-
 GdkPixbuf* pixbuf_from_file (const char *path){
-  return path_type_check(path, "webp") ? webp_to_pixbuf(path):
+  return path_type_check(path, "webp") ? get_pixbuf_webp_from_file(path):
          path_type_check(path, "heif") ? get_pixbuf_heif_from_file(path):
                                gdk_pixbuf_new_from_file(path, NULL);
 }
@@ -59,7 +49,6 @@ void set_pixbuf (GdkPixbuf *pixbuf, const char *path) {
 void set_pixbuf_from_file (const char *path) {
   set_pixbuf(pixbuf_from_file(path), path);
 }
-
 
 G_MODULE_EXPORT void area_draw
 (GtkWidget *widget, cairo_t *cr, gpointer data) {
@@ -97,9 +86,9 @@ G_MODULE_EXPORT void back_click
 (GtkButton *button, gpointer p) {
   if (flist) {
     if (flist->prev) flist = flist->prev;
-    gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
+    char path[1024];
+    sprintf(path, "%s/%s", now_dir, flist->data);
     set_pixbuf_from_file(path);
-    g_free(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
@@ -107,9 +96,9 @@ G_MODULE_EXPORT void next_click
 (GtkButton *button, gpointer p) {
   if (flist) {
     if (flist->next) flist = flist->next;
-    gchar *path = g_strdup_printf("%s/%s", now_dir, flist->data);
+    char path[1024];
+    sprintf(path, "%s/%s", now_dir, flist->data);
     set_pixbuf_from_file(path);
-    g_free(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
@@ -144,7 +133,7 @@ G_MODULE_EXPORT void key_press
   }
 }
 
-void* thread_read_webp_file (const char *path) {
+void* thread_get_pixbuf_from_file (const char *path) {
   pthread_exit(pixbuf_from_file(path));
 }
 
@@ -168,11 +157,11 @@ int main (int argc, char *argv[]) {
   char *file_name = NULL;
   if (argc > 1) {
     char *path = argv[1];
-    pthread_create(&thread, NULL, (void*)thread_read_webp_file, path);
     char **df = get_dir_file_name(path);
     dir_name = df[0];
     file_name = df[1];
     free(df);
+    pthread_create(&thread, NULL, (void*)thread_get_pixbuf_from_file, path);
   }
   else dir_name = g_get_current_dir();
   now_dir = dir_name;

@@ -1,36 +1,30 @@
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <sys/stat.h>
+#include <gdk-pixbuf/gdk-pixbuf-io.h>
 #include "webp/decode.h"
 
-typedef struct {
-  uint8_t *data;
-  unsigned int width;
-  unsigned int height;
-  unsigned int ch;
-} WEBP_DATA;
-
-WEBP_DATA readWebPFile (const char *path) {
-  WEBP_DATA webp_data;
-  webp_data.data = NULL;
+static void destroy_data (guchar *data, gpointer p) {
+  WebPFree(data);
+}
+GdkPixbuf* get_pixbuf_webp_from_file (const char *path) {
   FILE *fi = fopen(path, "rb");
   if (fi == NULL) {
     printf("%sは開けない\n", path);
-    return webp_data;
+    return NULL; 
   }
   struct stat statinfo;
   if (stat(path, &statinfo) != 0) {
     printf("%sのファイルサイズ取得に失敗\n", path);
     fclose(fi);
-    return webp_data;
+    return NULL;
   }
   long file_size = statinfo.st_size;
-  uint8_t *file_data = (uint8_t*) malloc(file_size);
+  uint8_t *file_data = (uint8_t*)malloc(file_size);
   if (file_data == NULL) {
     printf("malloc失敗\n");
     fclose(fi);
-    return webp_data;
+    return NULL;
   }
   fread(file_data, file_size, 1, fi);
   fclose(fi);
@@ -40,7 +34,7 @@ WEBP_DATA readWebPFile (const char *path) {
   if (ret != VP8_STATUS_OK ) {
     printf("WebPGetFeatures error\n");
     free(file_data);
-    return webp_data;
+    return NULL;
   }
   int width, height;
   uint8_t *data = features.has_alpha == 0 ?
@@ -48,13 +42,8 @@ WEBP_DATA readWebPFile (const char *path) {
     WebPDecodeRGBA(file_data, file_size, &width, &height);
   free(file_data);
 
-  unsigned int ch = features.has_alpha == 0 ? 3 : 4;
-  long data_size = width * height * ch;
-  webp_data.data = (uint8_t*) malloc(data_size);
-  memcpy(webp_data.data, data, data_size);
-  webp_data.width = width;
-  webp_data.height = height;
-  webp_data.ch = ch;
-  WebPFree(data);
-  return webp_data;
+  int ch = features.has_alpha == 0 ? 3 : 4;
+  return gdk_pixbuf_new_from_data(
+      data, GDK_COLORSPACE_RGB, ch == 4, 8,
+      width, height, width * ch, destroy_data, NULL);
 }
