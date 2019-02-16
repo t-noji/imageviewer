@@ -5,7 +5,7 @@
 #include "get_pixbuf_heif_from_file.h"
 #include "widget_func.h"
 
-#define CONF_PATH "/home/noji/sh/"
+#define CONF_PATH "./"
 
 GdkPixbuf *image_pixbuf = NULL;
 const char *now_dir = NULL;
