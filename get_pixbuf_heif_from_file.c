@@ -2,8 +2,9 @@
 #include <gdk-pixbuf/gdk-pixbuf-io.h>
 #include <libheif/heif.h>
 
-static void cleanup_heif_context (guchar* pixels, gpointer data) {
-  heif_context_free((struct heif_context*)data);
+static void cleanup_heif_context (guchar* pixels, gpointer hc) {
+  g_free(pixels);
+  heif_context_free((struct heif_context*)hc);
 }
 GdkPixbuf* get_pixbuf_heif_from_file (const char *path) {
 	struct heif_error err;

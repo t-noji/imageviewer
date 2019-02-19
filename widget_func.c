@@ -5,6 +5,7 @@
 GtkWidget *window;
 GtkWidget *scroll_window;
 GtkWidget *d_area;
+GtkWidget *button_box;
 
 GdkMonitor* get_gdk_monitor () {
   GdkDisplay *display = gdk_display_get_default();
@@ -21,7 +22,7 @@ double set_window_size_from_pixbuf (GdkPixbuf *pixbuf) {
   int p_height = gdk_pixbuf_get_height(pixbuf) * par_scale;
   GdkRectangle rectangle;
   gdk_monitor_get_geometry(get_gdk_monitor(), &rectangle);
-  int b_height = 33;
+  int b_height = gtk_widget_get_allocated_height(button_box);
   int s_width9 = rectangle.width * 0.9;
   int s_height9 = rectangle.height * 0.85;
   double w_hi = p_width <= s_width9 ? 1 : (double)s_width9 / p_width;
@@ -30,15 +31,15 @@ double set_window_size_from_pixbuf (GdkPixbuf *pixbuf) {
   int n_width = (double)p_width * hi;
   int n_height = (double)p_height * hi;
   gtk_window_resize(
-      GTK_WINDOW(window), n_width + 2, n_height + b_height + 2);
+      GTK_WINDOW(window), n_width, n_height + b_height);
   return hi;
 }
 double get_window_fix_scale (GdkPixbuf *pixbuf) {
   double ps = get_par_scale();
   double width = gdk_pixbuf_get_width(pixbuf) * ps;
   double height = gdk_pixbuf_get_height(pixbuf) * ps;
-  double w_width = gtk_widget_get_allocated_width(scroll_window) - 2;
-  double w_height = gtk_widget_get_allocated_height(scroll_window) - 2;
+  double w_width = gtk_widget_get_allocated_width(scroll_window);
+  double w_height = gtk_widget_get_allocated_height(scroll_window);
   double w_hi = (double)w_width / width;
   double h_hi = (double)w_height / height;
   return MIN(w_hi, h_hi);
@@ -67,8 +68,15 @@ void re_draw (GdkPixbuf *pixbuf, double now_scale, const char *fname) {
 void fullscreen () {
   static _Bool full = FALSE;
   GtkWindow *win = GTK_WINDOW(window);
-  if (full) gtk_window_unfullscreen(win);
-  else gtk_window_fullscreen(win);
+  if (full) {
+    gtk_widget_show(button_box);
+    gtk_window_unfullscreen(win);
+  }
+  else {
+    // ボタンにフォーカスがあるとハングアップする為注意 //
+    gtk_widget_hide(button_box);
+    gtk_window_fullscreen(win);
+  }
   full = !full;
 }
 
@@ -79,17 +87,17 @@ GtkWidget* init_builder (const char* path) {
   window = (GtkWidget*)gtk_builder_get_object(builder, "window"); 
   scroll_window =
     (GtkWidget*)gtk_builder_get_object(builder, "scroll_window"); 
-  d_area = (GtkWidget*)gtk_builder_get_object(builder,"draw_area");
-  gtk_widget_set_name(scroll_window, "draw_area");
+  d_area = (GtkWidget*)gtk_builder_get_object(builder, "draw_area");
+  button_box = (GtkWidget*)gtk_builder_get_object(builder, "button_box");
   g_object_unref(builder);
   return window;
 }
 void load_css (const char* css_file) {
-  GtkCssProvider *provider = gtk_css_provider_new ();
-  GdkDisplay *display = gdk_display_get_default ();
-  GdkScreen *screen = gdk_display_get_default_screen (display);
+  GtkCssProvider *provider = gtk_css_provider_new();
+  GdkDisplay *display = gdk_display_get_default();
+  GdkScreen *screen = gdk_display_get_default_screen(display);
   gtk_style_context_add_provider_for_screen (
-        screen, GTK_STYLE_PROVIDER (provider),
+        screen, GTK_STYLE_PROVIDER(provider),
         GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
   GError *error = 0;
   gtk_css_provider_load_from_file(

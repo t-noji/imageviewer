@@ -8,13 +8,27 @@
 #define CONF_PATH "./"
 
 GdkPixbuf *image_pixbuf = NULL;
-const char *now_dir = NULL;
+char *now_dir = NULL;
 double now_scale = 1;
 GList* flist = NULL;
+
+char* get_dir_name (const char *path) {
+  return strrchr(path, '/') == NULL ? g_get_current_dir():
+         path[0] == '/'             ? g_path_get_dirname(path):
+            ({gchar *cd = g_get_current_dir(),
+                   *dn = g_path_get_dirname(path),
+                   *zn = g_strdup_printf("%s/%s", cd, dn);
+             g_free(cd); g_free(dn);
+             zn;});
+}
 
 _Bool path_type_check (const char *path, const char *type) {
   char *file_ex = strrchr(path, '.');
   return file_ex && strcmp(file_ex + 1, type) == 0;
+}
+_Bool path_is_image (const char* name) {
+  return path_type_check(name, "webp") || path_type_check(name, "heif")
+    || path_type_check(name, "jpg") || path_type_check(name, "png");
 }
 GList* get_path_filelist (const char *dir_name) {
   GDir *dir = g_dir_open(dir_name, 0, NULL);
@@ -23,16 +37,18 @@ GList* get_path_filelist (const char *dir_name) {
     return NULL;
   }
   GList *list = NULL;
-  _Bool type_check (const char* name) {
-    return path_type_check(name, "webp") || path_type_check(name, "heif")
-      || path_type_check(name, "jpg") || path_type_check(name, "png");
-  }
   const char* name;
-  while (name = g_dir_read_name(dir))
-    if (type_check(name))
+  while ((name = g_dir_read_name(dir)))
+    if (path_is_image(name))
       list = g_list_prepend(list, (void*)g_strdup(name));
   g_dir_close(dir);
   return list;
+}
+GList* get_now_path_filelist (GList* f_list, const char *file_name) {
+  GList *list = f_list;
+  if (file_name)
+    while (strcmp(file_name, list->data) && (list = list->next));
+  return list ? list : f_list;
 }
 
 GdkPixbuf* pixbuf_from_file (const char *path){
@@ -49,6 +65,7 @@ void set_pixbuf (GdkPixbuf *pixbuf, const char *path) {
 void set_pixbuf_from_file (const char *path) {
   set_pixbuf(pixbuf_from_file(path), path);
 }
+
 
 G_MODULE_EXPORT void area_draw
 (GtkWidget *widget, cairo_t *cr, gpointer data) {
@@ -87,7 +104,7 @@ G_MODULE_EXPORT void back_click
   if (flist) {
     if (flist->prev) flist = flist->prev;
     char path[1024];
-    sprintf(path, "%s/%s", now_dir, flist->data);
+    sprintf(path, "%s/%s", now_dir, (char*)flist->data);
     set_pixbuf_from_file(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
@@ -97,7 +114,7 @@ G_MODULE_EXPORT void next_click
   if (flist) {
     if (flist->next) flist = flist->next;
     char path[1024];
-    sprintf(path, "%s/%s", now_dir, flist->data);
+    sprintf(path, "%s/%s", now_dir, (char*)flist->data);
     set_pixbuf_from_file(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
@@ -128,27 +145,38 @@ G_MODULE_EXPORT void key_press
     case GDK_KEY_f:
     case GDK_KEY_F11:
       fullscreen();
-      window_fix_click(NULL, NULL);
+      break;
+    case GDK_KEY_q:
+      gtk_main_quit();
       break;
   }
 }
 
-void* thread_get_pixbuf_from_file (const char *path) {
-  pthread_exit(pixbuf_from_file(path));
+static GtkTargetEntry target[] = { { "text/uri-list", 0, 0 } };
+G_MODULE_EXPORT void window_drag_data_received_cb
+(GtkWidget *widget, GdkDragContext *context, gint x, gint y,
+ GtkSelectionData *selection_data, guint info, guint time, gpointer p) {
+  gchar **uris = gtk_selection_data_get_uris(selection_data);
+  gchar *fname = g_filename_from_uri(uris[0], NULL, NULL);
+  if (path_is_image(fname)) {
+    g_free(now_dir);
+    g_list_free_full(flist, g_free);
+    now_dir = get_dir_name(fname);
+    flist = get_now_path_filelist(get_path_filelist(now_dir), now_dir);
+    set_pixbuf_from_file(fname);
+    re_draw(image_pixbuf, now_scale, flist->data);
+  }
+  g_strfreev(uris);
+  g_free(fname);
+}
+G_MODULE_EXPORT void d_area_button_press
+(GtkWidget *widget, GdkEventButton *event, gpointer p) {
+  static _Bool f = FALSE;
+  if (event->type == GDK_2BUTTON_PRESS && (f = !f)) fullscreen();
 }
 
-char** get_dir_file_name (const char *path) {
-  char **result = (char**)malloc(sizeof(char**) * 2);
-  result[0] =
-      strrchr(path, '/') == NULL ? g_get_current_dir():
-      path[0] == '/'             ? g_path_get_dirname(path):
-        ({gchar *cd = g_get_current_dir(),
-                *dn = g_path_get_dirname(path),
-                *zn = g_strdup_printf("%s/%s", cd, dn);
-          g_free(cd); g_free(dn);
-          zn;});
-  result[1] = g_path_get_basename(path);
-  return result;
+void* thread_get_pixbuf_from_file (const char *path) {
+  pthread_exit(pixbuf_from_file(path));
 }
 
 int main (int argc, char *argv[]) {
@@ -157,27 +185,24 @@ int main (int argc, char *argv[]) {
   char *file_name = NULL;
   if (argc > 1) {
     char *path = argv[1];
-    char **df = get_dir_file_name(path);
-    dir_name = df[0];
-    file_name = df[1];
-    free(df);
+    dir_name = get_dir_name(path);
+    file_name = g_path_get_basename(path);
     pthread_create(&thread, NULL, (void*)thread_get_pixbuf_from_file, path);
   }
   else dir_name = g_get_current_dir();
+
+  flist = get_now_path_filelist(get_path_filelist(dir_name), file_name);
   now_dir = dir_name;
 
   gtk_init(&argc, &argv); 
   GtkWidget *window = init_builder(CONF_PATH "iv.ui");
   load_css(CONF_PATH "iv.css");
+  gtk_drag_dest_set(
+      window, GTK_DEST_DEFAULT_ALL, target, 1, GDK_ACTION_COPY);
   gtk_widget_show_all(window);
-  GList *first = flist = get_path_filelist(dir_name);
 
   if (file_name) {
-    if (flist)
-      while (strcmp(file_name, flist->data) && (flist = flist->next));
-    if (!flist) flist = first;
-    void *status;
-    pthread_join(thread, &status);
+    void *status; pthread_join(thread, &status);
     set_pixbuf((GdkPixbuf*)status, argv[1]);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
