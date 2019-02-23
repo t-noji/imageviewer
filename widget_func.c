@@ -80,6 +80,25 @@ void fullscreen () {
   full = !full;
 }
 
+void inc_adjustment (GtkAdjustment *adjust, double arg) {
+  double v = gtk_adjustment_get_value(adjust);
+  gtk_adjustment_set_value(adjust, v + arg);
+}
+void v_inc_scroll (double arg) {
+  GtkAdjustment *adjust = 
+    gtk_scrolled_window_get_vadjustment((GtkScrolledWindow*)scroll_window);
+  inc_adjustment (adjust, arg);
+}
+void h_inc_scroll (double arg) {
+  GtkAdjustment *adjust = 
+    gtk_scrolled_window_get_hadjustment((GtkScrolledWindow*)scroll_window);
+  inc_adjustment (adjust, arg);
+}
+void scroll_up () { v_inc_scroll(-100); }
+void scroll_down () { v_inc_scroll(100); }
+void scroll_left () { h_inc_scroll(-100); }
+void scroll_right () { h_inc_scroll(100); }
+
 GtkWidget* init_builder (const char* path) {
   GtkBuilder *builder = gtk_builder_new(); 
   gtk_builder_add_from_file(builder, path, NULL); 

@@ -56,14 +56,14 @@ GdkPixbuf* pixbuf_from_file (const char *path){
          path_type_check(path, "heif") ? get_pixbuf_heif_from_file(path):
                                gdk_pixbuf_new_from_file(path, NULL);
 }
-void set_pixbuf (GdkPixbuf *pixbuf, const char *path) {
+void set_pixbuf (GdkPixbuf *pixbuf) {
   if (!pixbuf) return;
   if (image_pixbuf) g_object_unref(image_pixbuf);
   image_pixbuf = pixbuf;
   now_scale = set_window_size_from_pixbuf(pixbuf);
 }
 void set_pixbuf_from_file (const char *path) {
-  set_pixbuf(pixbuf_from_file(path), path);
+  set_pixbuf(pixbuf_from_file(path));
 }
 
 
@@ -122,12 +122,24 @@ G_MODULE_EXPORT void next_click
 G_MODULE_EXPORT void key_press
 (GtkWidget *widget, GdkEventKey *event, gpointer data) {
   switch (event->keyval) {
-    case GDK_KEY_j:
+    case GDK_KEY_Up:
+      scroll_up();
+      break;
     case GDK_KEY_Down:
+      scroll_down();
+      break;
+    case GDK_KEY_Left:
+      scroll_left();
+      break;
+    case GDK_KEY_Right:
+      scroll_right();
+      break;
+    case GDK_KEY_j:
+    case GDK_KEY_Page_Down:
       next_click(NULL, NULL);
       break;
     case GDK_KEY_k:
-    case GDK_KEY_Up:
+    case GDK_KEY_Page_Up:
       back_click(NULL, NULL);
       break;
     case GDK_KEY_1:
@@ -169,10 +181,25 @@ G_MODULE_EXPORT void window_drag_data_received_cb
   g_strfreev(uris);
   g_free(fname);
 }
+
+int drag_start_x = -1, drag_start_y = -1;
+G_MODULE_EXPORT void d_area_motion
+(GtkWidget *widget, GdkEventMotion *event, gpointer p) {
+  if (event->state & GDK_BUTTON1_MASK) {
+    if (drag_start_x > 0) h_inc_scroll(drag_start_x - event->x);
+    if (drag_start_y > 0) v_inc_scroll(drag_start_y - event->y);
+  }
+}
+G_MODULE_EXPORT void d_area_button_release
+(GtkWidget *widget, GdkEventMotion *event, gpointer p) {
+  drag_start_x = -1;
+  drag_start_y = -1;
+}
 G_MODULE_EXPORT void d_area_button_press
 (GtkWidget *widget, GdkEventButton *event, gpointer p) {
-  static _Bool f = FALSE;
-  if (event->type == GDK_2BUTTON_PRESS && (f = !f)) fullscreen();
+  drag_start_x = event->x;
+  drag_start_y = event->y;
+  if (event->type == GDK_2BUTTON_PRESS) fullscreen();
 }
 
 void* thread_get_pixbuf_from_file (const char *path) {
@@ -180,30 +207,37 @@ void* thread_get_pixbuf_from_file (const char *path) {
 }
 
 int main (int argc, char *argv[]) {
+  gtk_init(&argc, &argv); // GTK関連引数の除去効果あり //
+ 
   pthread_t thread;
+  _Bool thread_flag = FALSE;
   char *dir_name = NULL;
   char *file_name = NULL;
+
   if (argc > 1) {
     char *path = argv[1];
     dir_name = get_dir_name(path);
     file_name = g_path_get_basename(path);
-    pthread_create(&thread, NULL, (void*)thread_get_pixbuf_from_file, path);
+    if (path_is_image(file_name)) {
+      int err = pthread_create(
+        &thread, NULL, (void*)thread_get_pixbuf_from_file, path);
+      thread_flag = err == 0;
+    }
   }
   else dir_name = g_get_current_dir();
 
   flist = get_now_path_filelist(get_path_filelist(dir_name), file_name);
   now_dir = dir_name;
 
-  gtk_init(&argc, &argv); 
   GtkWidget *window = init_builder(CONF_PATH "iv.ui");
   load_css(CONF_PATH "iv.css");
   gtk_drag_dest_set(
       window, GTK_DEST_DEFAULT_ALL, target, 1, GDK_ACTION_COPY);
   gtk_widget_show_all(window);
 
-  if (file_name) {
+  if (thread_flag) {
     void *status; pthread_join(thread, &status);
-    set_pixbuf((GdkPixbuf*)status, argv[1]);
+    set_pixbuf((GdkPixbuf*)status);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
   gtk_main();
