@@ -48,9 +48,8 @@ double get_window_fix_scale (GdkPixbuf *pixbuf) {
 void set_title (GdkPixbuf *pixbuf, double now_scale, const char *fname) {
   int width = gdk_pixbuf_get_width(pixbuf);
   int height = gdk_pixbuf_get_height(pixbuf);
-  gchar *title = 
-    g_strdup_printf("%s %dx%d %d%%",
-      fname, width, height,(int)(now_scale * 100));
+  gchar *title = g_strdup_printf(
+      "%s %dx%d %d%%", fname, width, height, (int)(now_scale * 100));
   gtk_window_set_title(GTK_WINDOW(window), title);
   g_free(title);
 }
@@ -85,12 +84,12 @@ void inc_adjustment (GtkAdjustment *adjust, double arg) {
   gtk_adjustment_set_value(adjust, v + arg);
 }
 void v_inc_scroll (double arg) {
-  GtkAdjustment *adjust = 
+  GtkAdjustment *adjust =
     gtk_scrolled_window_get_vadjustment((GtkScrolledWindow*)scroll_window);
   inc_adjustment (adjust, arg);
 }
 void h_inc_scroll (double arg) {
-  GtkAdjustment *adjust = 
+  GtkAdjustment *adjust =
     gtk_scrolled_window_get_hadjustment((GtkScrolledWindow*)scroll_window);
   inc_adjustment (adjust, arg);
 }

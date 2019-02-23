@@ -60,7 +60,7 @@ void set_pixbuf (GdkPixbuf *pixbuf) {
   if (!pixbuf) return;
   if (image_pixbuf) g_object_unref(image_pixbuf);
   image_pixbuf = pixbuf;
-  now_scale = set_window_size_from_pixbuf(pixbuf);
+  now_scale = get_window_fix_scale(pixbuf);
 }
 void set_pixbuf_from_file (const char *path) {
   set_pixbuf(pixbuf_from_file(path));
@@ -195,11 +195,42 @@ G_MODULE_EXPORT void d_area_button_release
   drag_start_x = -1;
   drag_start_y = -1;
 }
+GtkMenu *menu;
 G_MODULE_EXPORT void d_area_button_press
 (GtkWidget *widget, GdkEventButton *event, gpointer p) {
   drag_start_x = event->x;
   drag_start_y = event->y;
   if (event->type == GDK_2BUTTON_PRESS) fullscreen();
+  else if (event->button == 3)
+    gtk_menu_popup_at_pointer(menu, (GdkEvent*)event);
+}
+void make_menu () {
+  menu = (GtkMenu*)gtk_menu_new();
+  GtkWidget *back = gtk_menu_item_new_with_label("< Back");
+  g_signal_connect(G_OBJECT(back), "activate", G_CALLBACK(back_click),NULL);
+  gtk_menu_attach(menu, back, 0, 1, 0, 1);
+  GtkWidget *next = gtk_menu_item_new_with_label("Next >");
+  g_signal_connect(G_OBJECT(next), "activate", G_CALLBACK(next_click),NULL);
+  gtk_menu_attach(menu, next, 1, 2, 0, 1);
+  GtkWidget *plus = gtk_menu_item_new_with_label("+ Plus");
+  g_signal_connect(G_OBJECT(plus), "activate", G_CALLBACK(plus_click),NULL);
+  gtk_menu_attach(menu, plus, 0, 1, 1, 2);
+  GtkWidget *minus = gtk_menu_item_new_with_label("Minus-");
+  g_signal_connect(G_OBJECT(minus),"activate",G_CALLBACK(minus_click),NULL);
+  gtk_menu_attach(menu, minus, 1, 2, 1, 2);
+  GtkWidget *fix = gtk_menu_item_new_with_label("Window fix");
+  g_signal_connect(
+      G_OBJECT(fix), "activate", G_CALLBACK(window_fix_click), NULL);
+  gtk_menu_attach(menu, fix, 0, 2, 2, 3);
+  GtkWidget *dbd = gtk_menu_item_new_with_label("Dot by dot");
+  g_signal_connect(
+      G_OBJECT(dbd), "activate", G_CALLBACK(dot_by_dot_click), NULL);
+  gtk_menu_attach(menu, dbd, 0, 2, 3, 4);
+  GtkWidget *full = gtk_menu_item_new_with_label("Full screen");
+  g_signal_connect(
+      G_OBJECT(full), "activate", G_CALLBACK(fullscreen), NULL);
+  gtk_menu_attach(menu, full, 0, 2, 4, 5);
+  gtk_widget_show_all((GtkWidget*)menu);
 }
 
 void* thread_get_pixbuf_from_file (const char *path) {
@@ -230,6 +261,7 @@ int main (int argc, char *argv[]) {
   now_dir = dir_name;
 
   GtkWidget *window = init_builder(CONF_PATH "iv.ui");
+  make_menu();
   load_css(CONF_PATH "iv.css");
   gtk_drag_dest_set(
       window, GTK_DEST_DEFAULT_ALL, target, 1, GDK_ACTION_COPY);
@@ -238,6 +270,7 @@ int main (int argc, char *argv[]) {
   if (thread_flag) {
     void *status; pthread_join(thread, &status);
     set_pixbuf((GdkPixbuf*)status);
+    now_scale = set_window_size_from_pixbuf(image_pixbuf);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
   gtk_main();
