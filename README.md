@@ -9,4 +9,4 @@ libwebpろlibheifとlibgtk-3をインストールした上で
 ``gcc `pkg-config --cflags --libs gtk+-3.0 gmodule-2.0` -c get_pixbuf_webp_from_file.c``  
 ``gcc `pkg-config --cflags --libs gtk+-3.0 gmodule-2.0` -c get_pixbuf_heif_from_file.c``  
 ``gcc `pkg-config --cflags --libs gtk+-3.0 gmodule-2.0` -c widget_func.c``  
-``gcc `pkg-config --cflags --libs gtk+-3.0 gmodule-2.0` -o iv -lwebp -lheif -no-pie get_pixbuf_webp_from_file.o get_pixbuf_heif_from_file.c widget_func.o iv.c``  
+``gcc `pkg-config --cflags --libs gtk+-3.0 gmodule-2.0` -o iv -lwebp -lheif -no-pie get_pixbuf_webp_from_file.o get_pixbuf_heif_from_file.o widget_func.o iv.c``  
