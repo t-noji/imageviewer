@@ -1,11 +1,10 @@
 #include <gtk/gtk.h>
 #include <string.h>
-#include <stdlib.h>
 #include "get_pixbuf_webp_from_file.h"
 #include "get_pixbuf_heif_from_file.h"
 #include "widget_func.h"
 
-#define CONF_PATH "./"
+#define CONF_PATH ""
 
 GdkPixbuf *image_pixbuf = NULL;
 char *now_dir = NULL;
@@ -13,13 +12,10 @@ double now_scale = 1;
 GList* flist = NULL;
 
 char* get_dir_name (const char *path) {
-  return strrchr(path, '/') == NULL ? g_get_current_dir():
-         path[0] == '/'             ? g_path_get_dirname(path):
-            ({gchar *cd = g_get_current_dir(),
-                   *dn = g_path_get_dirname(path),
-                   *zn = g_strdup_printf("%s/%s", cd, dn);
-             g_free(cd); g_free(dn);
-             zn;});
+  gchar *cf = g_canonicalize_filename(path, NULL);
+  gchar *dir = g_path_get_dirname(cf);
+  g_free(cf);
+  return dir;
 }
 
 _Bool path_type_check (const char *path, const char *type) {
@@ -37,7 +33,7 @@ GList* get_path_filelist (const char *dir_name) {
     return NULL;
   }
   GList *list = NULL;
-  const char* name;
+  const char *name;
   while ((name = g_dir_read_name(dir)))
     if (path_is_image(name))
       list = g_list_prepend(list, (void*)g_strdup(name));
@@ -103,9 +99,9 @@ G_MODULE_EXPORT void back_click
 (GtkButton *button, gpointer p) {
   if (flist) {
     if (flist->prev) flist = flist->prev;
-    char path[1024];
-    sprintf(path, "%s/%s", now_dir, (char*)flist->data);
+    gchar *path = g_build_filename(now_dir, (char*)flist->data, NULL);
     set_pixbuf_from_file(path);
+    g_free(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
@@ -113,9 +109,9 @@ G_MODULE_EXPORT void next_click
 (GtkButton *button, gpointer p) {
   if (flist) {
     if (flist->next) flist = flist->next;
-    char path[1024];
-    sprintf(path, "%s/%s", now_dir, (char*)flist->data);
+    gchar *path = g_build_filename(now_dir, (char*)flist->data, NULL);
     set_pixbuf_from_file(path);
+    g_free(path);
     re_draw(image_pixbuf, now_scale, flist->data);
   }
 }
@@ -233,15 +229,15 @@ void make_menu () {
   gtk_widget_show_all((GtkWidget*)menu);
 }
 
-void* thread_get_pixbuf_from_file (const char *path) {
-  pthread_exit(pixbuf_from_file(path));
+gpointer thread_get_pixbuf_from_file (gpointer path) {
+  g_thread_exit(pixbuf_from_file((const char*)path));
+  return NULL;
 }
 
 int main (int argc, char *argv[]) {
   gtk_init(&argc, &argv); // GTK関連引数の除去効果あり //
  
-  pthread_t thread;
-  _Bool thread_flag = FALSE;
+  GThread *thread = NULL;
   char *dir_name = NULL;
   char *file_name = NULL;
 
@@ -249,11 +245,8 @@ int main (int argc, char *argv[]) {
     char *path = argv[1];
     dir_name = get_dir_name(path);
     file_name = g_path_get_basename(path);
-    if (path_is_image(file_name)) {
-      int err = pthread_create(
-        &thread, NULL, (void*)thread_get_pixbuf_from_file, path);
-      thread_flag = err == 0;
-    }
+    if (path_is_image(file_name))
+      thread = g_thread_new(NULL, thread_get_pixbuf_from_file, path);
   }
   else dir_name = g_get_current_dir();
 
@@ -267,8 +260,8 @@ int main (int argc, char *argv[]) {
       window, GTK_DEST_DEFAULT_ALL, target, 1, GDK_ACTION_COPY);
   gtk_widget_show_all(window);
 
-  if (thread_flag) {
-    void *status; pthread_join(thread, &status);
+  if (thread) {
+    gpointer status = g_thread_join(thread);
     set_pixbuf((GdkPixbuf*)status);
     now_scale = set_window_size_from_pixbuf(image_pixbuf);
     re_draw(image_pixbuf, now_scale, flist->data);
