@@ -1,13 +1,14 @@
 #include <gtk/gtk.h>
 #include <string.h>
 #include <stdlib.h>
+#include "iv.h"
 
-GtkWidget *window;
-GtkWidget *scroll_window;
-GtkWidget *d_area;
-GtkWidget *button_box;
+static GtkWidget *window;
+static GtkWidget *scroll_window;
+static GtkWidget *d_area;
+static GtkWidget *button_box;
 
-GdkMonitor* get_gdk_monitor () {
+static GdkMonitor* get_gdk_monitor () {
   GdkDisplay *display = gdk_display_get_default();
   return gdk_display_get_monitor(display, 0);
   // 本来 at_windowで取得したいがGDK-CRITICALが出る為断念 //
@@ -79,7 +80,7 @@ void fullscreen () {
   full = !full;
 }
 
-void inc_adjustment (GtkAdjustment *adjust, double arg) {
+static void inc_adjustment (GtkAdjustment *adjust, double arg) {
   double v = gtk_adjustment_get_value(adjust);
   gtk_adjustment_set_value(adjust, v + arg);
 }
@@ -98,18 +99,6 @@ void scroll_down () { v_inc_scroll(100); }
 void scroll_left () { h_inc_scroll(-100); }
 void scroll_right () { h_inc_scroll(100); }
 
-GtkWidget* init_builder (const char* path) {
-  GtkBuilder *builder = gtk_builder_new(); 
-  gtk_builder_add_from_file(builder, path, NULL); 
-  gtk_builder_connect_signals(builder, NULL); 
-  window = (GtkWidget*)gtk_builder_get_object(builder, "window"); 
-  scroll_window =
-    (GtkWidget*)gtk_builder_get_object(builder, "scroll_window"); 
-  d_area = (GtkWidget*)gtk_builder_get_object(builder, "draw_area");
-  button_box = (GtkWidget*)gtk_builder_get_object(builder, "button_box");
-  g_object_unref(builder);
-  return window;
-}
 void load_css (const char* css_file) {
   GtkCssProvider *provider = gtk_css_provider_new();
   GdkDisplay *display = gdk_display_get_default();
@@ -122,3 +111,34 @@ void load_css (const char* css_file) {
       provider, g_file_new_for_path(css_file), &error);
   g_object_unref(provider);
 }
+void background_alpha () {
+  static _Bool alpha_flag = TRUE;
+  (alpha_flag ? *gtk_widget_hide: *gtk_widget_show)(button_box);
+  GtkPolicyType policy = alpha_flag ?
+      GTK_POLICY_EXTERNAL : GTK_POLICY_AUTOMATIC;
+  gtk_scrolled_window_set_policy(
+      (GtkScrolledWindow*)scroll_window, policy, policy);
+  const char *css_path = alpha_flag ?
+    CONF_PATH "iv_alpha.css": CONF_PATH "iv.css";
+  load_css(css_path);
+  gtk_window_set_decorated(GTK_WINDOW(window), !alpha_flag);
+  gtk_widget_set_app_paintable(window, alpha_flag);
+  alpha_flag = !alpha_flag;
+}
+
+GtkWidget* init_builder (const char* path) {
+  GtkBuilder *builder = gtk_builder_new();
+  gtk_builder_add_from_file(builder, path, NULL);
+  gtk_builder_connect_signals(builder, NULL);
+  window = (GtkWidget*)gtk_builder_get_object(builder, "window");
+  scroll_window =
+    (GtkWidget*)gtk_builder_get_object(builder, "scroll_window");
+  d_area = (GtkWidget*)gtk_builder_get_object(builder, "draw_area");
+  button_box = (GtkWidget*)gtk_builder_get_object(builder, "button_box");
+  g_object_unref(builder);
+  GdkScreen *screen = gtk_window_get_screen(GTK_WINDOW(window));
+  GdkVisual *visual = gdk_screen_get_rgba_visual(screen);
+  gtk_widget_set_visual(window, visual);
+  return window;
+}
+

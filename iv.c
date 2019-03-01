@@ -3,8 +3,7 @@
 #include "get_pixbuf_webp_from_file.h"
 #include "get_pixbuf_heif_from_file.h"
 #include "widget_func.h"
-
-#define CONF_PATH ""
+#include "iv.h"
 
 GdkPixbuf *image_pixbuf = NULL;
 char *now_dir = NULL;
@@ -18,11 +17,11 @@ char* get_dir_name (const char *path) {
   return dir;
 }
 
-_Bool path_type_check (const char *path, const char *type) {
+inline static _Bool path_type_check (const char *path, const char *type) {
   char *file_ex = strrchr(path, '.');
   return file_ex && strcmp(file_ex + 1, type) == 0;
 }
-_Bool path_is_image (const char* name) {
+inline static _Bool path_is_image (const char* name) {
   return path_type_check(name, "webp") || path_type_check(name, "heif")
     || path_type_check(name, "jpg") || path_type_check(name, "png");
 }
@@ -154,13 +153,15 @@ G_MODULE_EXPORT void key_press
     case GDK_KEY_F11:
       fullscreen();
       break;
+    case GDK_KEY_a:
+      background_alpha();
+      break;
     case GDK_KEY_q:
       gtk_main_quit();
       break;
   }
 }
 
-static GtkTargetEntry target[] = { { "text/uri-list", 0, 0 } };
 G_MODULE_EXPORT void window_drag_data_received_cb
 (GtkWidget *widget, GdkDragContext *context, gint x, gint y,
  GtkSelectionData *selection_data, guint info, guint time, gpointer p) {
@@ -178,6 +179,7 @@ G_MODULE_EXPORT void window_drag_data_received_cb
   g_free(fname);
 }
 
+GtkMenu *menu;
 int drag_start_x = -1, drag_start_y = -1;
 G_MODULE_EXPORT void d_area_motion
 (GtkWidget *widget, GdkEventMotion *event, gpointer p) {
@@ -191,7 +193,6 @@ G_MODULE_EXPORT void d_area_button_release
   drag_start_x = -1;
   drag_start_y = -1;
 }
-GtkMenu *menu;
 G_MODULE_EXPORT void d_area_button_press
 (GtkWidget *widget, GdkEventButton *event, gpointer p) {
   drag_start_x = event->x;
@@ -200,32 +201,25 @@ G_MODULE_EXPORT void d_area_button_press
   else if (event->button == 3)
     gtk_menu_popup_at_pointer(menu, (GdkEvent*)event);
 }
+
+void add_item
+(GtkMenu *menu, const char *label, GCallback callback,
+ int x0, int x1, int y0, int y1) {
+  GtkWidget *item = gtk_menu_item_new_with_label(label);
+  g_signal_connect(G_OBJECT(item), "activate", callback, NULL);
+  gtk_menu_attach(menu, item, x0, x1, y0, y1);
+}
 void make_menu () {
   menu = (GtkMenu*)gtk_menu_new();
-  GtkWidget *back = gtk_menu_item_new_with_label("< Back");
-  g_signal_connect(G_OBJECT(back), "activate", G_CALLBACK(back_click),NULL);
-  gtk_menu_attach(menu, back, 0, 1, 0, 1);
-  GtkWidget *next = gtk_menu_item_new_with_label("Next >");
-  g_signal_connect(G_OBJECT(next), "activate", G_CALLBACK(next_click),NULL);
-  gtk_menu_attach(menu, next, 1, 2, 0, 1);
-  GtkWidget *plus = gtk_menu_item_new_with_label("+ Plus");
-  g_signal_connect(G_OBJECT(plus), "activate", G_CALLBACK(plus_click),NULL);
-  gtk_menu_attach(menu, plus, 0, 1, 1, 2);
-  GtkWidget *minus = gtk_menu_item_new_with_label("Minus-");
-  g_signal_connect(G_OBJECT(minus),"activate",G_CALLBACK(minus_click),NULL);
-  gtk_menu_attach(menu, minus, 1, 2, 1, 2);
-  GtkWidget *fix = gtk_menu_item_new_with_label("Window fix");
-  g_signal_connect(
-      G_OBJECT(fix), "activate", G_CALLBACK(window_fix_click), NULL);
-  gtk_menu_attach(menu, fix, 0, 2, 2, 3);
-  GtkWidget *dbd = gtk_menu_item_new_with_label("Dot by dot");
-  g_signal_connect(
-      G_OBJECT(dbd), "activate", G_CALLBACK(dot_by_dot_click), NULL);
-  gtk_menu_attach(menu, dbd, 0, 2, 3, 4);
-  GtkWidget *full = gtk_menu_item_new_with_label("Full screen");
-  g_signal_connect(
-      G_OBJECT(full), "activate", G_CALLBACK(fullscreen), NULL);
-  gtk_menu_attach(menu, full, 0, 2, 4, 5);
+  add_item(menu, "< Back", G_CALLBACK(back_click), 0, 1, 0, 1);
+  add_item(menu, "Next >", G_CALLBACK(next_click), 1, 2, 0, 1);
+  add_item(menu, "+ Plus", G_CALLBACK(plus_click), 0, 1, 1, 2);
+  add_item(menu, "Minus-", G_CALLBACK(minus_click), 1, 2, 1, 2);
+  add_item(menu, "Window fix", G_CALLBACK(window_fix_click), 0, 2, 2, 3);
+  add_item(menu, "Dot by dot", G_CALLBACK(dot_by_dot_click), 0, 2, 3, 4);
+  add_item(menu, "Full screen", G_CALLBACK(fullscreen), 0, 2, 4, 5);
+  add_item(menu, "Alpha mode", G_CALLBACK(background_alpha), 0, 2, 6, 7);
+  add_item(menu, "Quit", G_CALLBACK(gtk_main_quit), 0, 2, 7, 8);
   gtk_widget_show_all((GtkWidget*)menu);
 }
 
@@ -233,6 +227,12 @@ gpointer thread_get_pixbuf_from_file (gpointer path) {
   g_thread_exit(pixbuf_from_file((const char*)path));
   return NULL;
 }
+gpointer thread_get_filelist (gpointer data) {
+  char **d_f = (char**)data;
+  g_thread_exit(get_now_path_filelist(get_path_filelist(d_f[0]), d_f[1]));
+  return NULL;
+}
+
 
 int main (int argc, char *argv[]) {
   gtk_init(&argc, &argv); // GTK関連引数の除去効果あり //
@@ -250,16 +250,19 @@ int main (int argc, char *argv[]) {
   }
   else dir_name = g_get_current_dir();
 
-  flist = get_now_path_filelist(get_path_filelist(dir_name), file_name);
+  GThread *fn_thread = g_thread_new(
+      NULL, thread_get_filelist, (char*[]){dir_name, file_name});
   now_dir = dir_name;
 
   GtkWidget *window = init_builder(CONF_PATH "iv.ui");
-  make_menu();
   load_css(CONF_PATH "iv.css");
+  make_menu();
+  GtkTargetEntry target[] = { { "text/uri-list", 0, 0 } };
   gtk_drag_dest_set(
       window, GTK_DEST_DEFAULT_ALL, target, 1, GDK_ACTION_COPY);
   gtk_widget_show_all(window);
 
+  flist = (GList*)g_thread_join(fn_thread);
   if (thread) {
     gpointer status = g_thread_join(thread);
     set_pixbuf((GdkPixbuf*)status);

@@ -11,5 +11,6 @@ void scroll_up();
 void scroll_down();
 void scroll_left();
 void scroll_right();
+void background_alpha();
 GtkWidget* init_builder (const char* path);
 void load_css (const char* css_file);
